@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Space Shooter</title>
+    <title>Neon Space Shooter - Online Ranked</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -12,7 +12,7 @@
             background-color: #050505;
             color: white;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            touch-action: none; /* 모바일에서 스크롤 방지 */
+            touch-action: none;
         }
         canvas {
             display: block;
@@ -34,7 +34,7 @@
             font-weight: bold;
             text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
         }
-        #start-screen, #game-over-screen {
+        #start-screen, #game-over-screen, #leaderboard-screen {
             position: absolute;
             top: 0;
             left: 0;
@@ -68,23 +68,60 @@
             transform: scale(1.05);
             box-shadow: 0 0 30px rgba(0, 242, 96, 0.6);
         }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            font-size: 1rem;
+            padding: 10px 20px;
+            margin-top: 10px;
+        }
         .hidden {
             display: none !important;
         }
-        /* 모바일용 컨트롤 안내 */
-        .mobile-hint {
-            font-size: 0.9rem;
-            color: #aaa;
-            margin-top: 10px;
+        input[type="text"] {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #00f260;
+            color: white;
+            padding: 10px 20px;
+            font-size: 1.2rem;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+            outline: none;
+        }
+        /* 리더보드 스타일 */
+        .rank-table {
+            width: 80%;
+            max-width: 500px;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 1.1rem;
+        }
+        .rank-table th, .rank-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .rank-table th {
+            color: #00ffff;
+        }
+        .rank-table tr:first-child td {
+            color: #ffd700; /* 1등 금색 */
+            font-weight: bold;
+        }
+        .scroll-box {
+            max-height: 300px;
+            overflow-y: auto;
+            width: 100%;
+            display: flex;
+            justify-content: center;
         }
     </style>
 </head>
 <body>
 
-    <!-- 게임 캔버스 -->
     <canvas id="gameCanvas"></canvas>
 
-    <!-- UI 레이어 -->
     <div id="ui-layer">
         <div class="flex justify-between w-full max-w-4xl mx-auto">
             <div class="hud-text" style="color: #00ffff;">SCORE: <span id="scoreEl">0</span></div>
@@ -94,27 +131,177 @@
 
     <!-- 시작 화면 -->
     <div id="start-screen">
-        <h1 class="text-5xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 filter drop-shadow-lg">
-            NEON SHOOTER
+        <h1 class="text-5xl font-black mb-4 text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600 filter drop-shadow-lg text-center">
+            NEON SHOOTER<br>ONLINE
         </h1>
         <p class="text-gray-300 mb-8 text-center max-w-md px-4">
-            적들을 파괴하고 살아남으세요.<br>
+            전 세계 플레이어들과 경쟁하세요.<br>
             <span class="text-sm text-gray-500 mt-2 block">PC: 방향키 이동 / 스페이스바 발사</span>
             <span class="text-sm text-gray-500 block">모바일: 터치 드래그 이동 / 자동 발사</span>
         </p>
         <button class="btn" id="startBtn">임무 시작</button>
+        <button class="btn btn-secondary" id="showLeaderboardBtn">🏆 명예의 전당</button>
     </div>
 
     <!-- 게임 오버 화면 -->
     <div id="game-over-screen" class="hidden">
         <h2 class="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">MISSION FAILED</h2>
         <p class="text-2xl text-white mb-6">최종 점수: <span id="finalScore">0</span></p>
-        <button class="btn" id="restartBtn">재시작</button>
+        
+        <div id="save-score-area">
+            <p class="text-sm text-gray-400 mb-2">이름을 입력하여 랭킹에 등록하세요</p>
+            <input type="text" id="playerNameInput" placeholder="PLAYER 1" maxlength="10">
+            <br>
+            <button class="btn" id="submitScoreBtn">점수 등록</button>
+        </div>
+        
+        <button class="btn btn-secondary" id="restartBtn">다시 시작</button>
     </div>
+
+    <!-- 리더보드 화면 -->
+    <div id="leaderboard-screen" class="hidden">
+        <h2 class="text-4xl font-black text-yellow-400 mb-4 drop-shadow-lg">🏆 TOP 10 RANKING</h2>
+        <div class="scroll-box">
+            <table class="rank-table">
+                <thead>
+                    <tr>
+                        <th>RANK</th>
+                        <th>NAME</th>
+                        <th>SCORE</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardBody">
+                    <tr><td colspan="3" class="text-center">데이터 로딩 중...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <button class="btn btn-secondary" id="closeLeaderboardBtn">닫기</button>
+    </div>
+
+    <!-- Firebase SDK (모듈 타입) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase 설정
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUser = null;
+
+        // 익명 로그인 및 초기화
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                     // 캔버스 환경에서는 토큰이 있을 수 있음
+                     // 여기선 간단히 익명 로그인 처리
+                     await signInAnonymously(auth);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+                console.log("Logged in as:", currentUser.uid);
+            } catch (error) {
+                console.error("Auth Error:", error);
+            }
+        }
+        initAuth();
+
+        // ------------------ 게임 로직 (외부 스코프 접근을 위해 window에 할당) ------------------
+        
+        // 데이터베이스 함수
+        window.saveScoreToDB = async (name, score) => {
+            if (!currentUser) await initAuth();
+            if (!currentUser) {
+                alert("서버 연결 실패. 다시 시도해주세요.");
+                return;
+            }
+
+            const btn = document.getElementById('submitScoreBtn');
+            btn.innerText = "저장 중...";
+            btn.disabled = true;
+
+            try {
+                // Rule 1: 지정된 경로 사용 /artifacts/{appId}/public/data/scores
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'scores'), {
+                    name: name || "Unknown",
+                    score: score,
+                    date: new Date().toISOString(),
+                    uid: currentUser.uid
+                });
+                alert("점수가 등록되었습니다!");
+                document.getElementById('save-score-area').classList.add('hidden'); // 중복 등록 방지
+                
+                // 바로 리더보드 보여주기
+                showLeaderboardScreen(); 
+            } catch (e) {
+                console.error("Save Error:", e);
+                alert("점수 저장에 실패했습니다.");
+                btn.innerText = "점수 등록";
+                btn.disabled = false;
+            }
+        };
+
+        window.loadLeaderboard = async () => {
+            const tbody = document.getElementById('leaderboardBody');
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center">불러오는 중...</td></tr>';
+
+            if (!currentUser) await initAuth();
+
+            try {
+                // Rule 2: orderBy 없이 가져와서 메모리 정렬 (No compound query error)
+                const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'scores'));
+                
+                let scores = [];
+                querySnapshot.forEach((doc) => {
+                    scores.push(doc.data());
+                });
+
+                // 내림차순 정렬
+                scores.sort((a, b) => b.score - a.score);
+                
+                // 상위 10개 자르기
+                scores = scores.slice(0, 10);
+
+                tbody.innerHTML = '';
+                if (scores.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-center">등록된 점수가 없습니다.</td></tr>';
+                    return;
+                }
+
+                scores.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${escapeHtml(item.name)}</td>
+                        <td>${item.score}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+            } catch (e) {
+                console.error("Load Error:", e);
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-red-400">데이터 로드 실패</td></tr>';
+            }
+        };
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
 
     <script>
         /**
-         * 게임 설정 및 상태 관리
+         * 게임 설정 및 상태 관리 (이전 로직 유지 + UI 연동)
          */
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -124,9 +311,14 @@
         const hpEl = document.getElementById('hpEl');
         const startScreen = document.getElementById('start-screen');
         const gameOverScreen = document.getElementById('game-over-screen');
+        const leaderboardScreen = document.getElementById('leaderboard-screen');
         const finalScoreEl = document.getElementById('finalScore');
         const startBtn = document.getElementById('startBtn');
         const restartBtn = document.getElementById('restartBtn');
+        const showLeaderboardBtn = document.getElementById('showLeaderboardBtn');
+        const closeLeaderboardBtn = document.getElementById('closeLeaderboardBtn');
+        const submitScoreBtn = document.getElementById('submitScoreBtn');
+        const playerNameInput = document.getElementById('playerNameInput');
 
         // 게임 상태 변수
         let animationId;
@@ -135,7 +327,6 @@
         let frames = 0;
         let isMobile = false;
 
-        // 캔버스 크기 조정
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -144,253 +335,89 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        /**
-         * 클래스 정의: 플레이어, 발사체, 적, 입자(이펙트), 배경별
-         */
-
+        // --- 클래스 정의 (이전과 동일) ---
         class Player {
             constructor() {
-                this.width = 40;
-                this.height = 50; // 조금 더 날렵하게
-                this.x = canvas.width / 2;
-                this.y = canvas.height - 100;
-                this.velocity = { x: 0, y: 0 };
-                this.speed = 7;
-                this.color = '#00ffff';
-                this.hp = 100;
-                this.radius = 20; // 충돌 감지용
+                this.width = 40; this.height = 50;
+                this.x = canvas.width / 2; this.y = canvas.height - 100;
+                this.velocity = { x: 0, y: 0 }; this.speed = 7;
+                this.color = '#00ffff'; this.hp = 100; this.radius = 20;
             }
-
             draw() {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                
-                // 기체 디자인 (전투기 모양)
-                ctx.beginPath();
-                ctx.moveTo(0, -this.height / 2);
-                ctx.lineTo(this.width / 2, this.height / 2);
-                ctx.lineTo(0, this.height / 3); // 엔진 부분 안쪽으로 파임
-                ctx.lineTo(-this.width / 2, this.height / 2);
-                ctx.closePath();
-                
-                // 네온 효과
-                ctx.shadowColor = this.color;
-                ctx.shadowBlur = 15;
-                ctx.fillStyle = this.color;
-                ctx.fill();
-
-                // 콕핏
-                ctx.fillStyle = '#ffffff';
-                ctx.shadowBlur = 0;
-                ctx.beginPath();
-                ctx.arc(0, -5, 5, 0, Math.PI * 2);
-                ctx.fill();
-                
+                ctx.save(); ctx.translate(this.x, this.y);
+                ctx.beginPath(); ctx.moveTo(0, -this.height / 2); ctx.lineTo(this.width / 2, this.height / 2);
+                ctx.lineTo(0, this.height / 3); ctx.lineTo(-this.width / 2, this.height / 2); ctx.closePath();
+                ctx.shadowColor = this.color; ctx.shadowBlur = 15; ctx.fillStyle = this.color; ctx.fill();
+                ctx.fillStyle = '#ffffff'; ctx.shadowBlur = 0; ctx.beginPath(); ctx.arc(0, -5, 5, 0, Math.PI * 2); ctx.fill();
                 ctx.restore();
             }
-
             update() {
                 this.draw();
-                
-                // 경계선 체크
                 if (this.x - this.width/2 < 0) this.x = this.width/2;
                 if (this.x + this.width/2 > canvas.width) this.x = canvas.width - this.width/2;
                 if (this.y - this.height/2 < 0) this.y = this.height/2;
                 if (this.y + this.height/2 > canvas.height) this.y = canvas.height - this.height/2;
-
-                // 이동 적용
-                this.x += this.velocity.x;
-                this.y += this.velocity.y;
+                this.x += this.velocity.x; this.y += this.velocity.y;
             }
         }
-
         class Projectile {
             constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.velocity = { x: 0, y: -12 }; // 빠른 속도
-                this.radius = 4;
-                this.color = '#ffcc00';
+                this.x = x; this.y = y; this.velocity = { x: 0, y: -12 }; this.radius = 4; this.color = '#ffcc00';
             }
-
             draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
-                ctx.shadowColor = this.color;
-                ctx.shadowBlur = 10;
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                ctx.shadowBlur = 0; // 성능을 위해 리셋
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.shadowColor = this.color; ctx.shadowBlur = 10; ctx.fillStyle = this.color; ctx.fill(); ctx.shadowBlur = 0;
             }
-
-            update() {
-                this.draw();
-                this.x += this.velocity.x;
-                this.y += this.velocity.y;
-            }
+            update() { this.draw(); this.x += this.velocity.x; this.y += this.velocity.y; }
         }
-
         class Enemy {
             constructor(x, y, type) {
-                this.x = x;
-                this.y = y;
-                this.type = type; // 0: 기본, 1: 빠름, 2: 튼튼함
-                
-                // 타입별 속성 설정
-                if (this.type === 1) { // 스피드형
-                    this.width = 30;
-                    this.height = 30;
-                    this.velocity = { x: 0, y: 5 };
-                    this.color = '#ff0055';
-                    this.hp = 1;
-                    this.scoreValue = 20;
-                } else if (this.type === 2) { // 탱커형
-                    this.width = 60;
-                    this.height = 60;
-                    this.velocity = { x: 0, y: 1.5 };
-                    this.color = '#be2edd';
-                    this.hp = 3;
-                    this.scoreValue = 50;
-                } else { // 기본형
-                    this.width = 40;
-                    this.height = 40;
-                    this.velocity = { x: 0, y: 3 };
-                    this.color = '#ff4d4d';
-                    this.hp = 1;
-                    this.scoreValue = 10;
-                }
-                
+                this.x = x; this.y = y; this.type = type;
+                if (this.type === 1) { this.width = 30; this.height = 30; this.velocity = { x: 0, y: 5 }; this.color = '#ff0055'; this.hp = 1; this.scoreValue = 20; }
+                else if (this.type === 2) { this.width = 60; this.height = 60; this.velocity = { x: 0, y: 1.5 }; this.color = '#be2edd'; this.hp = 3; this.scoreValue = 50; }
+                else { this.width = 40; this.height = 40; this.velocity = { x: 0, y: 3 }; this.color = '#ff4d4d'; this.hp = 1; this.scoreValue = 10; }
                 this.radius = this.width / 2;
             }
-
             draw() {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                
-                ctx.beginPath();
-                if (this.type === 2) {
-                    // 육각형
-                    for (let i = 0; i < 6; i++) {
-                        ctx.lineTo(this.width/2 * Math.cos(i * Math.PI / 3), this.width/2 * Math.sin(i * Math.PI / 3));
-                    }
-                } else {
-                    // 마름모 (적)
-                    ctx.moveTo(0, this.height/2);
-                    ctx.lineTo(this.width/2, 0);
-                    ctx.lineTo(0, -this.height/2);
-                    ctx.lineTo(-this.width/2, 0);
-                }
-                ctx.closePath();
-
-                ctx.shadowColor = this.color;
-                ctx.shadowBlur = 10;
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                
-                // HP 표시 (1 이상일 때만)
-                if (this.hp > 1) {
-                    ctx.fillStyle = 'white';
-                    ctx.font = '12px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.shadowBlur = 0;
-                    ctx.fillText(this.hp, 0, 5);
-                }
-
+                ctx.save(); ctx.translate(this.x, this.y); ctx.beginPath();
+                if (this.type === 2) { for (let i = 0; i < 6; i++) ctx.lineTo(this.width/2 * Math.cos(i * Math.PI / 3), this.width/2 * Math.sin(i * Math.PI / 3)); }
+                else { ctx.moveTo(0, this.height/2); ctx.lineTo(this.width/2, 0); ctx.lineTo(0, -this.height/2); ctx.lineTo(-this.width/2, 0); }
+                ctx.closePath(); ctx.shadowColor = this.color; ctx.shadowBlur = 10; ctx.fillStyle = this.color; ctx.fill();
+                if (this.hp > 1) { ctx.fillStyle = 'white'; ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.shadowBlur = 0; ctx.fillText(this.hp, 0, 5); }
                 ctx.restore();
             }
-
-            update() {
-                this.draw();
-                this.x += this.velocity.x;
-                this.y += this.velocity.y;
-            }
+            update() { this.draw(); this.x += this.velocity.x; this.y += this.velocity.y; }
         }
-
         class Particle {
             constructor(x, y, color) {
-                this.x = x;
-                this.y = y;
-                this.velocity = {
-                    x: (Math.random() - 0.5) * 6,
-                    y: (Math.random() - 0.5) * 6
-                };
-                this.radius = Math.random() * 3;
-                this.color = color;
-                this.alpha = 1;
-                this.friction = 0.96; // 감속
+                this.x = x; this.y = y;
+                this.velocity = { x: (Math.random() - 0.5) * 6, y: (Math.random() - 0.5) * 6 };
+                this.radius = Math.random() * 3; this.color = color; this.alpha = 1; this.friction = 0.96;
             }
-
             draw() {
-                ctx.save();
-                ctx.globalAlpha = this.alpha;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-                ctx.restore();
+                ctx.save(); ctx.globalAlpha = this.alpha; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color; ctx.fill(); ctx.restore();
             }
-
-            update() {
-                this.draw();
-                this.velocity.x *= this.friction;
-                this.velocity.y *= this.friction;
-                this.x += this.velocity.x;
-                this.y += this.velocity.y;
-                this.alpha -= 0.02; // 페이드 아웃
-            }
+            update() { this.draw(); this.velocity.x *= this.friction; this.velocity.y *= this.friction; this.x += this.velocity.x; this.y += this.velocity.y; this.alpha -= 0.02; }
         }
-
         class Star {
             constructor() {
-                this.x = Math.random() * canvas.width;
-                this.y = Math.random() * canvas.height;
-                this.radius = Math.random() * 1.5;
-                this.velocity = { x: 0, y: Math.random() * 2 + 0.5 }; // 원근감
-                this.alpha = Math.random();
+                this.x = Math.random() * canvas.width; this.y = Math.random() * canvas.height;
+                this.radius = Math.random() * 1.5; this.velocity = { x: 0, y: Math.random() * 2 + 0.5 }; this.alpha = Math.random();
             }
-            
-            draw() {
-                ctx.save();
-                ctx.globalAlpha = this.alpha;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
-                ctx.fillStyle = 'white';
-                ctx.fill();
-                ctx.restore();
-            }
-
-            update() {
-                this.draw();
-                this.y += this.velocity.y;
-                // 화면 아래로 나가면 위로 재배치
-                if (this.y > canvas.height) {
-                    this.y = 0;
-                    this.x = Math.random() * canvas.width;
-                }
-            }
+            draw() { ctx.save(); ctx.globalAlpha = this.alpha; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill(); ctx.restore(); }
+            update() { this.draw(); this.y += this.velocity.y; if (this.y > canvas.height) { this.y = 0; this.x = Math.random() * canvas.width; } }
         }
 
-        /**
-         * 게임 로직 및 제어
-         */
-        
+        // --- 게임 컨트롤 ---
         let player = new Player();
         let projectiles = [];
         let enemies = [];
         let particles = [];
         let stars = [];
-        let keys = {
-            ArrowRight: false,
-            ArrowLeft: false,
-            ArrowUp: false,
-            ArrowDown: false,
-            Space: false
-        };
+        let keys = { ArrowRight: false, ArrowLeft: false, ArrowUp: false, ArrowDown: false, Space: false };
 
-        // 배경 별 초기화
-        for (let i = 0; i < 70; i++) {
-            stars.push(new Star());
-        }
+        for (let i = 0; i < 70; i++) stars.push(new Star());
 
         function init() {
             player = new Player();
@@ -402,23 +429,21 @@
             scoreEl.innerHTML = score;
             hpEl.innerHTML = player.hp;
             gameActive = true;
+            document.getElementById('save-score-area').classList.remove('hidden'); // 게임 재시작시 저장 버튼 다시 보임
+            submitScoreBtn.innerText = "점수 등록";
+            submitScoreBtn.disabled = false;
         }
 
         function spawnEnemies() {
-            // 60프레임(약 1초)마다 적 생성, 점수가 높을수록 더 자주 생성
             const spawnRate = Math.max(30, 60 - Math.floor(score / 500));
-            
             if (frames % spawnRate === 0) {
                 const radius = 30;
                 let x = Math.random() * (canvas.width - radius * 2) + radius;
                 let y = -100;
-                
-                // 적 타입 확률
                 let type = 0;
                 const rand = Math.random();
-                if (score > 500 && rand < 0.2) type = 2; // 탱커
-                else if (score > 200 && rand < 0.4) type = 1; // 스피드
-                
+                if (score > 500 && rand < 0.2) type = 2;
+                else if (score > 200 && rand < 0.4) type = 1;
                 enemies.push(new Enemy(x, y, type));
             }
         }
@@ -426,105 +451,61 @@
         function animate() {
             if (!gameActive) return;
             animationId = requestAnimationFrame(animate);
-            ctx.fillStyle = 'rgba(5, 5, 5, 0.3)'; // 잔상 효과
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.3)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 배경 별 업데이트
             stars.forEach(star => star.update());
 
-            // 플레이어 제어 (PC)
             if (keys.ArrowRight && player.x < canvas.width - player.width/2) player.velocity.x = player.speed;
             else if (keys.ArrowLeft && player.x > player.width/2) player.velocity.x = -player.speed;
             else player.velocity.x = 0;
-
             if (keys.ArrowUp && player.y > player.height/2) player.velocity.y = -player.speed;
             else if (keys.ArrowDown && player.y < canvas.height - player.height/2) player.velocity.y = player.speed;
             else player.velocity.y = 0;
 
             player.update();
 
-            // 입자(폭발) 업데이트
             particles.forEach((particle, index) => {
-                if (particle.alpha <= 0) {
-                    particles.splice(index, 1);
-                } else {
-                    particle.update();
-                }
+                if (particle.alpha <= 0) particles.splice(index, 1);
+                else particle.update();
             });
 
-            // 발사체 업데이트
             projectiles.forEach((projectile, index) => {
                 projectile.update();
-
-                // 화면 밖 제거
-                if (projectile.y + projectile.radius < 0) {
-                    setTimeout(() => {
-                        projectiles.splice(index, 1);
-                    }, 0);
-                }
+                if (projectile.y + projectile.radius < 0) setTimeout(() => projectiles.splice(index, 1), 0);
             });
 
-            // 적 업데이트 및 충돌 처리
             enemies.forEach((enemy, index) => {
                 enemy.update();
-
-                // 플레이어와 적 충돌
                 const distPlayer = Math.hypot(player.x - enemy.x, player.y - enemy.y);
                 if (distPlayer - enemy.radius - player.radius < 1) {
-                    // 충돌 이펙트
                     for (let i = 0; i < 15; i++) {
                         particles.push(new Particle(player.x, player.y, player.color));
                         particles.push(new Particle(enemy.x, enemy.y, enemy.color));
                     }
-                    
                     enemies.splice(index, 1);
-                    player.hp -= 34; // 3번 맞으면 사망
+                    player.hp -= 34;
                     if(player.hp < 0) player.hp = 0;
                     hpEl.innerHTML = Math.floor(player.hp);
-
-                    if (player.hp <= 0) {
-                        endGame();
-                    }
+                    if (player.hp <= 0) endGame();
                 }
 
-                // 총알과 적 충돌
                 projectiles.forEach((projectile, pIndex) => {
                     const dist = Math.hypot(projectile.x - enemy.x, projectile.y - enemy.y);
-
-                    // 충돌 발생
                     if (dist - enemy.radius - projectile.radius < 1) {
-                        // 폭발 이펙트 (작은 폭발)
-                        for (let i = 0; i < 4; i++) {
-                            particles.push(new Particle(projectile.x, projectile.y, enemy.color));
-                        }
-
-                        // 적 피격 처리
+                        for (let i = 0; i < 4; i++) particles.push(new Particle(projectile.x, projectile.y, enemy.color));
                         enemy.hp--;
-                        
-                        // 총알 제거
                         setTimeout(() => projectiles.splice(pIndex, 1), 0);
-
                         if (enemy.hp <= 0) {
-                            // 큰 폭발
-                            for (let i = 0; i < 10; i++) {
-                                particles.push(new Particle(enemy.x, enemy.y, enemy.color));
-                            }
-                            
-                            // 점수 증가
+                            for (let i = 0; i < 10; i++) particles.push(new Particle(enemy.x, enemy.y, enemy.color));
                             score += enemy.scoreValue;
                             scoreEl.innerHTML = score;
-
-                            setTimeout(() => {
-                                enemies.splice(index, 1);
-                            }, 0);
+                            setTimeout(() => enemies.splice(index, 1), 0);
                         }
                     }
                 });
-
-                // 화면 아래로 나가면 게임 오버(혹은 점수 깎임) - 여기선 그냥 제거하고 플레이어 데미지
                 if (enemy.y > canvas.height + 100) {
                     enemies.splice(index, 1);
-                    player.hp -= 10; // 놓치면 데미지 조금
+                    player.hp -= 10;
                     if(player.hp < 0) player.hp = 0;
                     hpEl.innerHTML = Math.floor(player.hp);
                     if (player.hp <= 0) endGame();
@@ -535,12 +516,8 @@
             frames++;
         }
 
-        // 발사 로직
-        function shoot() {
-            projectiles.push(new Projectile(player.x, player.y - 20));
-        }
+        function shoot() { projectiles.push(new Projectile(player.x, player.y - 20)); }
 
-        // 게임 오버 처리
         function endGame() {
             gameActive = false;
             cancelAnimationFrame(animationId);
@@ -548,67 +525,76 @@
             gameOverScreen.classList.remove('hidden');
         }
 
-        // 이벤트 리스너 설정
+        // --- 이벤트 리스너 ---
         window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                 if (gameActive) shoot();
-                 keys.Space = true;
-            }
+            if (e.code === 'Space') { if (gameActive) shoot(); keys.Space = true; }
             if (keys.hasOwnProperty(e.code)) keys[e.code] = true;
         });
-
         window.addEventListener('keyup', (e) => {
             if (e.code === 'Space') keys.Space = false;
             if (keys.hasOwnProperty(e.code)) keys[e.code] = false;
         });
 
-        // 모바일 터치 컨트롤
-        let touchX = 0;
-        let touchY = 0;
-        let firingInterval;
-
+        let touchX = 0; let touchY = 0; let firingInterval;
         window.addEventListener('touchstart', (e) => {
             if (!gameActive) return;
-            touchX = e.touches[0].clientX;
-            touchY = e.touches[0].clientY;
-            
-            // 모바일은 자동 발사
-            if (!firingInterval) {
-                firingInterval = setInterval(shoot, 200); // 0.2초마다 발사
+            touchX = e.touches[0].clientX; touchY = e.touches[0].clientY;
+            if (!firingInterval) firingInterval = setInterval(shoot, 200);
+        });
+        window.addEventListener('touchmove', (e) => {
+            if (!gameActive) return;
+            e.preventDefault();
+            const tX = e.touches[0].clientX; const tY = e.touches[0].clientY;
+            player.x = tX; player.y = tY - 50;
+        }, { passive: false });
+        window.addEventListener('touchend', () => { clearInterval(firingInterval); firingInterval = null; });
+
+        // 버튼 이벤트 연결
+        startBtn.addEventListener('click', () => {
+            startScreen.classList.add('hidden');
+            init(); animate();
+        });
+        restartBtn.addEventListener('click', () => {
+            gameOverScreen.classList.add('hidden');
+            init(); animate();
+        });
+
+        // 리더보드 버튼 로직
+        showLeaderboardBtn.addEventListener('click', () => {
+            showLeaderboardScreen();
+        });
+
+        closeLeaderboardBtn.addEventListener('click', () => {
+            leaderboardScreen.classList.add('hidden');
+            // 게임 오버 상태라면 게임 오버 화면을 다시 보여줌, 시작 전이면 시작 화면 보여줌
+            if (score > 0 && !gameActive) {
+                gameOverScreen.classList.remove('hidden');
+            } else {
+                startScreen.classList.remove('hidden');
             }
         });
 
-        window.addEventListener('touchmove', (e) => {
-            if (!gameActive) return;
-            e.preventDefault(); // 스크롤 방지
-            const tX = e.touches[0].clientX;
-            const tY = e.touches[0].clientY;
-
-            // 터치 위치를 따라가되 부드럽게 (Lerp 대신 직접 대입으로 반응성 향상)
-            player.x = tX;
-            player.y = tY - 50; // 손가락 살짝 위
-        }, { passive: false });
-
-        window.addEventListener('touchend', () => {
-            clearInterval(firingInterval);
-            firingInterval = null;
+        // 점수 제출
+        submitScoreBtn.addEventListener('click', () => {
+            const name = playerNameInput.value.trim();
+            if (name.length === 0) {
+                alert("이름을 입력해주세요!");
+                return;
+            }
+            if (window.saveScoreToDB) {
+                window.saveScoreToDB(name, score);
+            }
         });
 
-        // 버튼 이벤트
-        startBtn.addEventListener('click', () => {
+        function showLeaderboardScreen() {
             startScreen.classList.add('hidden');
-            init();
-            animate();
-        });
-
-        restartBtn.addEventListener('click', () => {
             gameOverScreen.classList.add('hidden');
-            init();
-            animate();
-        });
+            leaderboardScreen.classList.remove('hidden');
+            if (window.loadLeaderboard) {
+                window.loadLeaderboard();
+            }
+        }
 
     </script>
 </body>
-
-    
 </html>
